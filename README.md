@@ -1,47 +1,95 @@
-> **Status: sandbox/hackathon project. Not production-ready. Do not process live money.** See "Production gate" below.
+# PayPilot AI
+### Six specialist agents. One coordinated commerce workflow.
 
-# PayPilot AI — Collective Procurement Upgrade
+> **Hackathon project · PayPal-powered prototype**
+>
+> PayPilot explores how a coordinated team of AI agents can make complex commerce workflows easier to understand and manage—while keeping consequential financial decisions in the hands of people.
 
-PayPilot is an AI-assisted commerce workflow built around PayPal checkout. This refinement consolidates overlapping agent responsibilities into six core specialists plus an opt-in impact capability, while retaining the persistent collective procurement workflow.
+[![PayPal](https://img.shields.io/badge/Payments-PayPal-003087?logo=paypal)](https://www.paypal.com/)
+[![AI Agents](https://img.shields.io/badge/Architecture-6%20specialist%20agents-6C5CE7)](#the-six-specialist-agents)
+[![Status](https://img.shields.io/badge/Status-Hackathon%20prototype-orange)](#project-status--production-readiness)
 
-## Agent system
+---
 
-The system has **six core specialist agents**, coordinated by the master orchestrator, plus one opt-in impact capability:
+## The idea
 
-1. Trust — summarizes seller history and risk signals.
-2. Payment — creates PayPal checkout; buyer approval is required before capture.
-3. Delivery — presents shipment information and tracking evidence.
-4. Dispute — prepares an evidence-based draft for human review.
-5. Intelligence — summarizes merchant order metrics.
-6. Collective Procurement — owns group-buy discovery, buyer commitments, supplier quote comparison, landed-cost ranking and human-reviewed counter-offers.
-7. Optional Impact capability — reports the purchase impact ledger only when explicitly requested. Impact metadata may still be calculated during capture, but the impact specialist is not run on every purchase.
+Online commerce is not one task. A purchase can involve checking seller signals, initiating payment, following delivery, handling disputes and understanding business performance. Group purchasing adds another layer: collecting buyer commitments, comparing supplier offers and coordinating separate payments.
 
-The former standalone Commerce/Group-buy agent has been removed. Its campaign-discovery responsibility is handled by Collective Procurement, avoiding duplicate routing and overlapping campaign summaries. The orchestrator allowlists only these six core agents plus the opt-in impact capability. The collective agent is **decision support**, not an autonomous buyer: it cannot award suppliers, bind buyers, or move money. Campaign owners explicitly award a quote, and each buyer individually approves their own PayPal checkout.
+**PayPilot brings these related jobs into one AI-assisted workflow.** A master orchestrator interprets the request and delegates work to focused specialist agents. Each agent has a defined responsibility instead of relying on one general-purpose assistant to do everything.
 
-A normal purchase routes through Trust and Payment. Delivery, Dispute, Intelligence, Collective Procurement and Impact are invoked only when the request requires them. Impact is not automatically invoked for a purchase.
+The result is a modular commerce assistant designed around three principles:
 
-## New collective procurement flow
+- **Specialisation:** each agent focuses on a distinct commerce responsibility.
+- **Coordination:** the orchestrator connects the right capabilities for the task.
+- **Human control:** important actions—especially supplier awards and PayPal payment approval—remain explicit user decisions.
 
-1. An authenticated owner creates a campaign with a target quantity, minimum quantity, currency, price target and deadline.
-2. Buyers commit quantities and maximum acceptable unit prices.
-3. Suppliers submit unit price, shipping-per-unit, minimum quantity and lead time.
-4. The owner awards a quote only after the minimum buyer quantity is reached. The database function locks the campaign row and rechecks the conditions atomically.
-5. Each committed buyer can request a separate PayPal checkout. The total is quantity × (unit price + shipping per unit). PayPal does not capture funds until the buyer approves on PayPal.
-6. The existing PayPal webhook/payment flow records the payment state.
+## The six specialist agents
 
-The campaign/quote/commitment API is available at:
+| Agent | What it does | Why it matters |
+|---|---|---|
+| **1 · Trust Agent** | Summarises available seller history and risk signals. | Helps users assess a seller before proceeding. |
+| **2 · Payment Agent** | Creates PayPal checkout flows and supports the payment lifecycle. | Connects the commerce experience to PayPal while preserving buyer approval. |
+| **3 · Delivery Agent** | Presents shipment information and tracking evidence. | Makes order progress easier to understand. |
+| **4 · Dispute Agent** | Organises transaction and delivery evidence into a draft for human review. | Helps users prepare a clearer, evidence-based dispute. |
+| **5 · Intelligence Agent** | Summarises merchant order metrics and business insights. | Turns order information into more useful operational context. |
+| **6 · Collective Procurement Agent** | Supports group-buy discovery, buyer commitments, supplier quote comparison, landed-cost ranking and counter-offer support. | Helps groups compare offers and coordinate a bulk purchase. |
 
-- `POST /api/group-buys`
-- `GET /api/group-buys`
-- `POST /api/group-buys/{campaign_id}/quotes`
-- `POST /api/group-buys/{campaign_id}/join`
-- `POST /api/group-buys/{campaign_id}/award`
-- `POST /api/group-buys/{campaign_id}/checkout`
+### How the agents work together
 
-Demo requests include `user_id`; production requests use `Authorization: Bearer <Supabase access token>` instead.
+The **Master Orchestrator is the coordinator—not a seventh specialist agent**. It interprets the user's request, selects the relevant specialists and brings their outputs together. Agents are invoked when the task calls for them; a normal purchase does not need to run every specialist.
+
+```mermaid
+flowchart TD
+    U["User request"] --> O["Master Orchestrator"]
+    O --> T["Trust Agent"]
+    O --> P["Payment Agent"]
+    O --> D["Delivery Agent"]
+    O --> R["Dispute Agent"]
+    O --> I["Intelligence Agent"]
+    O --> C["Collective Procurement Agent"]
+    O -. "Only when explicitly requested" .-> X["Optional Impact capability"]
+    T --> S["Relevant results returned"]
+    P --> S
+    D --> S
+    R --> S
+    I --> S
+    C --> S
+    X --> S
+```
+
+The optional **Impact capability** is not part of the six core agents. It reports the purchase impact ledger when explicitly requested; it is not automatically run for every purchase.
+
+## A standout workflow: Collective Procurement
+
+Most shopping flows are designed around one buyer. PayPilot also explores a group-buy workflow where multiple buyers can combine demand, compare supplier offers and then complete their own payments.
+
+### From a group request to individual checkout
+
+1. **Create a campaign** — an authenticated campaign owner sets the product, target quantity, minimum quantity, currency, target price and deadline.
+2. **Collect buyer commitments** — buyers specify the quantity they want and their maximum acceptable unit price.
+3. **Compare supplier quotes** — suppliers submit unit price, shipping per unit, minimum quantity and lead time.
+4. **Review and award** — once the minimum committed quantity is reached, the campaign owner explicitly awards a quote. The database function locks the campaign row and rechecks the conditions atomically.
+5. **Checkout individually** — each committed buyer can request their own PayPal checkout. The total is calculated from quantity × (unit price + shipping per unit).
+6. **Approve on PayPal** — each buyer approves their own PayPal order; the existing webhook/payment flow records payment state.
+
+**Important design choice:** the Collective Procurement Agent provides decision support. It cannot independently award a supplier, bind a buyer or move money. The campaign owner awards the supplier, and each buyer controls their own checkout approval.
+
+### Group-buy API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/group-buys` | Create a campaign |
+| `GET` | `/api/group-buys` | List campaigns |
+| `POST` | `/api/group-buys/{campaign_id}/quotes` | Submit a supplier quote |
+| `POST` | `/api/group-buys/{campaign_id}/join` | Commit to a campaign |
+| `POST` | `/api/group-buys/{campaign_id}/award` | Award a supplier quote |
+| `POST` | `/api/group-buys/{campaign_id}/checkout` | Start an individual buyer checkout |
+
+For the chat agent, pass `procurement_campaign_id` to `/api/chat` and ask it to compare supplier quotes. The frontend includes an optional campaign ID field.
+
+### Example campaign
 
 ```json
-// POST /api/group-buys
 {
   "user_id": "owner_1",
   "title": "USB-C hubs bulk order",
@@ -54,24 +102,58 @@ Demo requests include `user_id`; production requests use `Authorization: Bearer 
 }
 ```
 
-A supplier posts a quote with `unit_price`, `shipping_per_unit`, `currency`, `lead_days` and `minimum_quantity`. A buyer joins with `quantity` and `max_unit_price`. The campaign owner then awards a quote; each buyer calls the checkout endpoint and approves their own PayPal order.
+A supplier quote includes `unit_price`, `shipping_per_unit`, `currency`, `lead_days` and `minimum_quantity`. A buyer commitment includes `quantity` and `max_unit_price`.
 
-For the chat agent, include `procurement_campaign_id` in `/api/chat` and ask it to compare supplier quotes. The frontend has an optional campaign ID field. Group-buy discovery and comparison are handled by the Collective Procurement agent; there is no separate Commerce agent.
+## Why this architecture?
+
+- **One orchestrator, focused specialists:** responsibilities are separated, making the system easier to extend and reason about.
+- **Task-based routing:** only relevant agents need to run for a given request.
+- **Commerce-aware workflows:** the system covers more than checkout, including trust signals, delivery, disputes and merchant insights.
+- **Collective purchasing:** group demand and supplier offers are represented as a persistent workflow, not just a chat response.
+- **Explicit approval boundaries:** AI assistance does not equal permission to spend money or make binding procurement decisions.
+
+## Technology
+
+- **Frontend:** Next.js
+- **Backend:** Python, FastAPI
+- **Database and backend services:** Supabase
+- **Payments:** PayPal integration and webhook flow
+- **AI:** orchestrated specialist-agent workflow
+- **Local development:** Docker support and Python development dependencies
 
 ## Run locally
+
+### 1. Configure the backend
 
 ```bash
 cp .env.example backend/.env
 # Add PayPal sandbox credentials if you want to test checkout.
 cd backend
 python -m venv .venv
-# Windows PowerShell: .venv\\Scripts\\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements-dev.txt   # includes pytest; production images use requirements.txt
+```
+
+Activate the environment:
+
+```powershell
+# Windows PowerShell
+.venv\\Scripts\\Activate.ps1
+```
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Install dependencies and start the API:
+
+```bash
+pip install -r requirements-dev.txt
 uvicorn main:app --reload
 ```
 
-In another terminal:
+### 2. Start the frontend
+
+In a second terminal:
 
 ```bash
 cd frontend
@@ -79,32 +161,51 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Demo auth is only for local sandbox testing. The default frontend uses a browser-generated demo user ID.
+Open **http://localhost:3000**.
+
+> Demo authentication is intended only for local sandbox testing. The default frontend uses a browser-generated demo user ID.
 
 ## Supabase setup
 
-Run `backend/schema.sql` in the Supabase SQL editor. It creates the existing order tables plus group-buy tables and database functions for atomic webhook claiming, buyer commitments and supplier award checks. Configure `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` in `backend/.env`. Never expose the service-role key in the frontend.
+Run `backend/schema.sql` in the Supabase SQL editor. It creates the existing order tables, group-buy tables and database functions for atomic webhook claiming, buyer commitments and supplier-award checks.
 
-## Production gate — read before deploying
+Configure `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` in `backend/.env`.
 
-**This repository is production-oriented, not certified production-ready. Do not process live money until every item below is implemented and verified in your own environment.**
+**Never expose the Supabase service-role key in frontend code.**
 
-- The frontend still needs a real Supabase Auth sign-in/session implementation and must send verified access tokens. Backend JWT mode supports HS256 (`SUPABASE_JWT_SECRET`) and asymmetric keys via JWKS (`SUPABASE_JWKS_URL`); the JWKS path is untested against a real Supabase project.
-- Replace the in-process IP rate limiter with a shared distributed limiter (for example Redis or a database-backed atomic limiter) and set `FORWARDED_ALLOW_IPS` to your real proxy address (the Docker image defaults to 127.0.0.1).
-- Add authorization policies/role management for supplier onboarding, campaign ownership, seller accounts and administrative actions; the backend service-role key bypasses RLS, so every endpoint must enforce identity and ownership.
-- Add campaign cancellation, expiry worker, quote withdrawal, commitment cancellation/refund handling, partial fulfilment and failed-payment recovery.
-- Add supplier identity verification and evidence-backed reliability metrics. Current quote ranking uses only landed price and lead time; it does not prove supplier quality.
-- Add payment reconciliation, refunds/reversals, dispute lifecycle sync and operational alerts. Never rely on a browser redirect as proof of payment.
-- Add distributed tracing, structured audit logs, secret rotation, backups, retention rules, monitoring and incident response.
-- Verify PayPal webhook signature configuration and all event types in a PayPal sandbox account. Test duplicate, concurrent, delayed and out-of-order deliveries.
-- Run backend tests, frontend typecheck/build, API integration tests against a disposable Supabase project, and an end-to-end sandbox purchase before release.
+## Project status & production readiness
 
-Production/live startup now refuses demo auth, demo data and in-memory storage. `ENV=production` requires `DEMO_MODE=false`, `AUTH_MODE=jwt` and configured Supabase storage. `PAYPAL_MODE=live` additionally requires the webhook ID.
+PayPilot is a **hackathon/sandbox prototype**, not a certified production payment platform. Do not process live money until the production requirements below have been implemented and verified in the deployment environment.
 
-## Validation performed for this package
+### Validation recorded for this package
 
 - Backend Python compilation: passed.
-- Backend unit tests: 19 passed.
-- FastAPI app construction: passed.
-- Frontend typecheck/build: not run successfully because frontend dependencies are not installed in this environment. Run `npm install`, `npm run typecheck` and `npm run build` locally.
-- Supabase SQL and live PayPal integration: not executed against external services. No real PayPal transaction, Supabase deployment, or production security audit is claimed.
+- Backend unit tests: **19 passed**.
+- FastAPI application construction: passed.
+- Frontend typecheck/build: not successfully run in the recorded environment because frontend dependencies were not installed.
+- Supabase SQL and live PayPal integration: not executed against external services.
+- No real PayPal transaction, Supabase deployment or production security audit is claimed.
+
+### Before any production launch
+
+- Implement real Supabase Auth sign-in/session handling in the frontend and send verified access tokens. Backend JWT mode supports HS256 (`SUPABASE_JWT_SECRET`) and asymmetric keys via JWKS (`SUPABASE_JWKS_URL`); the JWKS path still needs verification against a real Supabase project.
+- Replace the in-process IP rate limiter with a shared distributed limiter and configure trusted proxy IP handling.
+- Add and verify authorization policies for supplier onboarding, campaign ownership, seller accounts and administrative actions. The backend service-role key bypasses RLS, so every endpoint must enforce identity and ownership.
+- Implement campaign cancellation/expiry, quote withdrawal, commitment cancellation and refunds, partial fulfilment and failed-payment recovery.
+- Add supplier identity verification and evidence-backed reliability metrics. Current quote ranking uses landed price and lead time; it does not establish supplier quality.
+- Add payment reconciliation, refunds/reversals, dispute lifecycle synchronisation and operational alerts. A browser redirect must never be treated as proof of payment.
+- Add distributed tracing, structured audit logs, secret rotation, backups, retention rules, monitoring and incident response.
+- Verify PayPal webhook signatures and event handling in a PayPal sandbox; test duplicate, concurrent, delayed and out-of-order events.
+- Run backend tests, frontend typecheck/build, API integration tests against a disposable Supabase project and a complete end-to-end sandbox purchase.
+
+Production/live startup refuses demo auth, demo data and in-memory storage. `ENV=production` requires `DEMO_MODE=false`, `AUTH_MODE=jwt` and configured Supabase storage. `PAYPAL_MODE=live` additionally requires the webhook ID.
+
+## Project vision
+
+**Make commerce workflows more understandable, coordinated and accountable—with AI doing the preparation and people retaining control of consequential decisions.**
+
+PayPilot is an exploration of how specialised AI agents can work together across the commerce lifecycle, from seller assessment and checkout to delivery, dispute preparation, merchant intelligence and collective procurement.
+
+---
+
+*Built as a hackathon project. Capabilities and readiness statements above reflect the repository's documented implementation and validation status.*
